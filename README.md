@@ -47,6 +47,13 @@ My photo collection consists of:
 - Design a database or file-based system to store sorting progress
 - Ensure the app can handle large numbers of files without performance issues
 
+## Example constants.py (in root dir)
+
+PUBLIC_ROOT = "test_public"
+PRIVATE_ROOT = "test_private"
+SAFE_DELETE_ROOT = "test_safe_delete"
+METADATA_FOLDER = "test_metadata"
+
 ## Contributing
 
 This is a personal project, but I'm open to suggestions and ideas. Feel free to open an issue if you have any recommendations for improving the sorting process or app functionality.
