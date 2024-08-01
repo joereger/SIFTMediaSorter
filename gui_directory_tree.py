@@ -62,9 +62,16 @@ class DirectoryTreePane(QWidget):
         self.public_tree.directory_selected.connect(self.directory_selected)
         self.private_tree.directory_selected.connect(self.directory_selected)
 
+        # Connect tab change signal
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
+
     def refresh_stats(self, path):
         self.public_tree.refresh_stats(path)
         self.private_tree.refresh_stats(path)
+
+    def on_tab_changed(self, index):
+        current_tree = self.tab_widget.widget(index)
+        current_tree.refresh_directory_structure()
 
 class DirectoryTree(QTreeView):
     directory_selected = pyqtSignal(str)
@@ -82,6 +89,7 @@ class DirectoryTree(QTreeView):
         self.scroll_positions = {}  # Dictionary to store scroll positions
 
     def populate_tree(self):
+        self.model.clear()
         root_item = self.model.invisibleRootItem()
         self.add_directory(root_item, self.root_path)
 
@@ -172,3 +180,8 @@ class DirectoryTree(QTreeView):
             if found_item:
                 return found_item
         return None
+
+    def refresh_directory_structure(self):
+        self.populate_tree()
+        self.expandAll()  # Expand all items to show the full directory structure
+        self.viewport().update()

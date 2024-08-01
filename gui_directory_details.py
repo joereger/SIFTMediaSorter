@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtGui import QColor, QPalette
 import os
 from sift_io_utils import SiftIOUtils
 from sift_metadata_utils import SiftMetadataUtils
@@ -18,6 +19,10 @@ class DirectoryDetailsPane(QWidget):
         self.private_button = QPushButton("Private")
         button_layout.addWidget(self.public_button)
         button_layout.addWidget(self.private_button)
+
+        # Set button colors
+        self.public_button.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        self.private_button.setStyleSheet("background-color: #F44336; color: white; font-weight: bold;")
 
         layout.addWidget(self.dir_name_label)
         layout.addWidget(self.file_count_label)
@@ -41,7 +46,7 @@ class DirectoryDetailsPane(QWidget):
 
     def refresh_stats(self):
         if self.current_path:
-            self.dir_name_label.setText(f"Directory: {os.path.basename(self.current_path)}")
+            self.dir_name_label.setText(f"Directory: {self.current_path}")
             
             status = self.io_utils.get_directory_status(self.current_path)
             total_files = status['total']

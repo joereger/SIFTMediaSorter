@@ -8,11 +8,12 @@ from sift_metadata_utils import SiftMetadataUtils
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftIOUtils:
-    def __init__(self, public_root, private_root, safe_delete_root):
+    def __init__(self, public_root, private_root, safe_delete_root, gui_refresh_callback=None):
         self.public_root = public_root
         self.private_root = private_root
         self.safe_delete_root = safe_delete_root
         self.metadata_utils = SiftMetadataUtils(public_root, private_root)
+        self.gui_refresh_callback = gui_refresh_callback
 
     def list_directory(self, directory):
         contents = os.listdir(directory)
@@ -28,18 +29,29 @@ class SiftIOUtils:
             current_status = self.metadata_utils.get_file_status(path)
             new_status = 'public' if is_public else 'private'
             if current_status != new_status:
-                new_path = self.move_file(path, is_public)
+                new_path, new_dir_created, removed_dirs = self.move_file(path, is_public)
                 self.metadata_utils.update_manual_review_status(new_path, new_status)
+                if new_dir_created and self.gui_refresh_callback:
+                    self.gui_refresh_callback(os.path.dirname(new_path))
+                for removed_dir in removed_dirs:
+                    if self.gui_refresh_callback:
+                        self.gui_refresh_callback(removed_dir)
             else:
                 self.metadata_utils.update_manual_review_status(path, new_status)
         
         # Refresh stats for the current directory and its parents
         self.refresh_directory_stats(os.path.dirname(path))
 
+        # Refresh GUI for the source and destination directories
+        if self.gui_refresh_callback:
+            self.gui_refresh_callback(os.path.dirname(path))
+            new_root = self.public_root if is_public else self.private_root
+            self.gui_refresh_callback(os.path.join(new_root, os.path.relpath(os.path.dirname(path), self.public_root if not is_public else self.private_root)))
+
     def move_file(self, file_path, is_public):
         if os.path.isdir(file_path):
             logging.info(f"Skipping directory in move_file: {file_path}")
-            return file_path
+            return file_path, False, []
 
         source_root = self.public_root if file_path.startswith(self.public_root) else self.private_root
         dest_root = self.public_root if is_public else self.private_root
@@ -48,7 +60,7 @@ class SiftIOUtils:
 
         logging.info(f"Moving file from {file_path} to {dest_path}")
 
-        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        new_dir_created = self.create_directory_if_not_exists(os.path.dirname(dest_path))
 
         if os.path.exists(dest_path):
             base, ext = os.path.splitext(dest_path)
@@ -65,10 +77,35 @@ class SiftIOUtils:
             os.remove(file_path)
             logging.info(f"File moved successfully: {file_path} -> {dest_path}")
             self.metadata_utils.update_file_path(file_path, dest_path)
-            return dest_path
+            removed_dirs = self.remove_empty_directories(os.path.dirname(file_path))
+            return dest_path, new_dir_created, removed_dirs
         else:
             logging.error(f"File integrity check failed for {file_path}")
             raise Exception("File integrity check failed")
+
+    def create_directory_if_not_exists(self, directory):
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+            logging.info(f"Created new directory: {directory}")
+            return True
+        return False
+
+    def remove_empty_directories(self, path):
+        removed_dirs = []
+        for root, dirs, files in os.walk(path, topdown=False):
+            for dir in dirs:
+                dir_path = os.path.join(root, dir)
+                if not os.listdir(dir_path):
+                    os.rmdir(dir_path)
+                    removed_dirs.append(dir_path)
+                    logging.info(f"Removed empty directory: {dir_path}")
+
+        if not os.listdir(path):
+            os.rmdir(path)
+            removed_dirs.append(path)
+            logging.info(f"Removed empty directory: {path}")
+
+        return removed_dirs
 
     def batch_sort_directory(self, dir_path, is_public):
         logging.info(f"Batch sorting directory: {dir_path}")

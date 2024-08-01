@@ -11,6 +11,7 @@ from gui_video_widgets import VideoPlayerWidget
 class FilesGridPane(QScrollArea):
     file_selected = pyqtSignal(str)
     stats_updated = pyqtSignal(str)
+    directory_removed = pyqtSignal(str)
 
     def __init__(self, public_root, private_root, safe_delete_root):
         super().__init__()
@@ -55,6 +56,8 @@ class FilesGridPane(QScrollArea):
         self.current_path = ""
         self.current_file = ""
         self.items = []
+        self.public_root = public_root
+        self.private_root = private_root
 
         # Initialize SiftIOUtils and SiftMetadataUtils
         self.sift_io = SiftIOUtils(public_root, private_root, safe_delete_root)
@@ -83,9 +86,22 @@ class FilesGridPane(QScrollArea):
 
     def refresh_grid(self):
         self.clear_grid()
-        self.populate_grid()
-        # Restore scroll position for the new directory after populating the grid
-        QTimer.singleShot(0, self.check_and_restore_scroll_position)
+        if os.path.exists(self.current_path):
+            self.populate_grid()
+            # Restore scroll position for the new directory after populating the grid
+            QTimer.singleShot(0, self.check_and_restore_scroll_position)
+        else:
+            print(f"Directory no longer exists: {self.current_path}")
+            parent_dir = os.path.dirname(self.current_path)
+            if parent_dir == self.current_path:  # We're at the root
+                if self.current_path.startswith(self.public_root):
+                    self.current_path = self.public_root
+                else:
+                    self.current_path = self.private_root
+            else:
+                self.current_path = parent_dir
+            self.directory_removed.emit(self.current_path)
+            self.populate_grid()
 
     def on_scroll(self):
         # Save the scroll position whenever the user scrolls

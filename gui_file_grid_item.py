@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from gui_video_widgets import VideoThumbnailWidget
 import os
+from sift_metadata_utils import SiftMetadataUtils
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -24,12 +25,22 @@ class FileGridItem(QWidget):
         self.parent = parent
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
+        self.border_widget = QWidget(self)
+        self.border_layout = QVBoxLayout(self.border_widget)
+        self.border_layout.setContentsMargins(5, 5, 5, 5)
+        self.border_layout.setSpacing(0)
+
+        self.content_widget = QWidget(self.border_widget)
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(0)
 
         # Create hover buttons
-        self.hover_widget = QWidget(self)
+        self.hover_widget = QWidget(self.content_widget)
         hover_layout = QHBoxLayout(self.hover_widget)
         hover_layout.setContentsMargins(0, 0, 0, 0)
         hover_layout.setSpacing(0)
@@ -47,31 +58,48 @@ class FileGridItem(QWidget):
 
         _, file_extension = os.path.splitext(file_path)
         if file_extension.lower() in ['.mp4', '.avi', '.mov', '.wmv', '.mpg', '.mpeg']:
-            self.content_widget = VideoThumbnailWidget(file_path, self)
+            self.image_widget = VideoThumbnailWidget(file_path, self)
         else:
-            self.content_widget = ClickableLabel(self)
-            self.content_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            self.image_widget = ClickableLabel(self)
+            self.image_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.image_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             self.pixmap = QPixmap(file_path)
             if self.pixmap.isNull():
-                self.content_widget.setText(os.path.basename(file_path))
+                self.image_widget.setText(os.path.basename(file_path))
             else:
                 self.adjust_content()
 
-        layout.addWidget(self.content_widget)
+        self.content_layout.addWidget(self.image_widget)
+        self.border_layout.addWidget(self.content_widget)
+        self.main_layout.addWidget(self.border_widget)
+
+        self.update_border()
+
+    def update_border(self):
+        metadata_utils = SiftMetadataUtils(self.parent.sift_io.public_root, self.parent.sift_io.private_root)
+        status, is_reviewed = metadata_utils.get_file_status(self.file_path)
+
+        if not is_reviewed:
+            self.border_widget.setStyleSheet("QWidget { border: 5px solid gray; background-color: transparent; }")
+        elif status == 'public':
+            self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
+        elif status == 'private':
+            self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
+        else:
+            self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
 
     def adjust_content(self):
         if hasattr(self, 'pixmap') and not self.pixmap.isNull():
-            scaled_pixmap = self.pixmap.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            self.content_widget.setPixmap(scaled_pixmap)
-        if isinstance(self.content_widget, VideoThumbnailWidget):
-            self.content_widget.setFixedSize(self.size())
+            scaled_pixmap = self.pixmap.scaled(self.size() - QSize(20, 20), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self.image_widget.setPixmap(scaled_pixmap)
+        if isinstance(self.image_widget, VideoThumbnailWidget):
+            self.image_widget.setFixedSize(self.size() - QSize(20, 20))
         if hasattr(self, 'hover_widget'):
-            self.hover_widget.setGeometry(0, self.height() - 30, self.width(), 30)
+            self.hover_widget.setGeometry(0, self.height() - 35, self.width(), 30)
 
     def cleanup(self):
-        if isinstance(self.content_widget, VideoThumbnailWidget):
-            self.content_widget.cleanup()
+        if isinstance(self.image_widget, VideoThumbnailWidget):
+            self.image_widget.cleanup()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -87,9 +115,11 @@ class FileGridItem(QWidget):
 
     def sort_public(self):
         self.parent.sort_public(self.file_path)
+        self.update_border()
 
     def sort_private(self):
         self.parent.sort_private(self.file_path)
+        self.update_border()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

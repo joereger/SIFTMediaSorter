@@ -1,5 +1,6 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
 from gui_directory_tree import DirectoryTreePane
 from gui_directory_details import DirectoryDetailsPane
 from gui_files_grid import FilesGridPane
@@ -10,7 +11,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SIFT Image Sorter")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowState(Qt.WindowState.WindowMaximized)
 
         # Create main widget and layout
         main_widget = QWidget()
@@ -18,14 +19,22 @@ class MainWindow(QMainWindow):
         main_widget.setLayout(main_layout)
         self.setCentralWidget(main_widget)
 
-        # Create panes
-        self.directory_tree = DirectoryTreePane(PUBLIC_ROOT, PRIVATE_ROOT)
-        self.directory_details = DirectoryDetailsPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)
-        self.files_grid = FilesGridPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)  # Pass all required arguments
+        # Create left side widget and layout
+        left_widget = QWidget()
+        left_layout = QVBoxLayout()
+        left_widget.setLayout(left_layout)
 
-        # Add panes to layout with specified widths
-        main_layout.addWidget(self.directory_tree, 15)
-        main_layout.addWidget(self.directory_details, 15)
+        # Create panes
+        self.directory_details = DirectoryDetailsPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)
+        self.directory_tree = DirectoryTreePane(PUBLIC_ROOT, PRIVATE_ROOT)
+        self.files_grid = FilesGridPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)
+
+        # Add directory details and directory tree to left layout
+        left_layout.addWidget(self.directory_details, 25)
+        left_layout.addWidget(self.directory_tree, 75)
+
+        # Add left widget and files grid to main layout
+        main_layout.addWidget(left_widget, 30)
         main_layout.addWidget(self.files_grid, 70)
 
         # Connect signals
