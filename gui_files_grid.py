@@ -1,6 +1,6 @@
 import os
 from PyQt6.QtWidgets import QScrollArea, QWidget, QGridLayout, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget
-from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QSize
 from PyQt6.QtGui import QPixmap
 from gui_file_grid_item import FileGridItem
 from sift_io_utils import SiftIOUtils
@@ -21,6 +21,8 @@ class FilesGridPane(QScrollArea):
         self.main_widget = QWidget()
         self.setWidget(self.main_widget)
         self.main_layout = QVBoxLayout(self.main_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
         self.stacked_widget = QStackedWidget()
         self.main_layout.addWidget(self.stacked_widget)
@@ -32,10 +34,18 @@ class FilesGridPane(QScrollArea):
 
         self.zoomed_widget = QWidget()
         self.zoomed_layout = QVBoxLayout(self.zoomed_widget)
+        self.zoomed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.zoomed_layout.setContentsMargins(0, 0, 0, 0)
+        self.zoomed_layout.setSpacing(10)
+
+        self.zoomed_content = QLabel()
+        self.zoomed_content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoomed_layout.addWidget(self.zoomed_content)
 
         # Create persistent buttons for zoomed view
         self.button_widget = QWidget()
         self.button_layout = QHBoxLayout(self.button_widget)
+        self.button_layout.setContentsMargins(0, 0, 0, 0)
         self.public_button = QPushButton("Public")
         self.private_button = QPushButton("Private")
         self.close_button = QPushButton("Close")
@@ -70,6 +80,7 @@ class FilesGridPane(QScrollArea):
     @pyqtSlot(str)
     def update_directory(self, path):
         if path != self.current_path:
+            self.close_zoomed()
             self.current_path = path
             self.refresh_grid()
 
@@ -121,6 +132,8 @@ class FilesGridPane(QScrollArea):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.adjust_grid()
+        if self.stacked_widget.currentWidget() == self.zoomed_widget:
+            self.show_zoomed(self.current_file)
 
     def adjust_grid(self):
         width = self.grid_widget.width()
@@ -135,36 +148,44 @@ class FilesGridPane(QScrollArea):
         self.current_file = file_path
 
         # Clear previous zoomed content
-        for i in reversed(range(self.zoomed_layout.count())):
-            widget = self.zoomed_layout.itemAt(i).widget()
-            if widget and widget != self.button_widget:
-                widget.setParent(None)
-                widget.deleteLater()
+        self.zoomed_content.clear()
 
         # Create zoomed view
         _, file_extension = os.path.splitext(file_path)
         if file_extension.lower() in ['.mp4', '.avi', '.mov', '.wmv', '.mpg', '.mpeg']:
-            zoomed_content = VideoPlayerWidget(file_path)
-            zoomed_content.closed.connect(self.close_zoomed)
-            zoomed_content.sort_public.connect(self.sort_public_current)
-            zoomed_content.sort_private.connect(self.sort_private_current)
+            video_player = VideoPlayerWidget(file_path)
+            video_player.closed.connect(self.close_zoomed)
+            video_player.sort_public.connect(self.sort_public_current)
+            video_player.sort_private.connect(self.sort_private_current)
+            self.zoomed_layout.insertWidget(0, video_player)
             self.public_button.hide()
             self.private_button.hide()
-            self.close_button.show()
         else:
-            zoomed_content = QLabel()
             pixmap = QPixmap(file_path)
-            zoomed_content.setPixmap(pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-            zoomed_content.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            if not pixmap.isNull():
+                scaled_pixmap = pixmap.scaled(
+                    self.viewport().width() - 20,
+                    self.viewport().height() - 100,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                self.zoomed_content.setPixmap(scaled_pixmap)
+            else:
+                self.zoomed_content.setText(f"Unable to display: {os.path.basename(file_path)}")
             self.public_button.show()
             self.private_button.show()
-            self.close_button.show()
 
-        self.zoomed_layout.insertWidget(0, zoomed_content)
+        self.close_button.show()
         self.stacked_widget.setCurrentWidget(self.zoomed_widget)
 
     def close_zoomed(self):
         self.stacked_widget.setCurrentWidget(self.grid_widget)
+        # Remove any video player widget if it exists
+        for i in reversed(range(self.zoomed_layout.count())):
+            widget = self.zoomed_layout.itemAt(i).widget()
+            if isinstance(widget, VideoPlayerWidget):
+                widget.setParent(None)
+                widget.deleteLater()
 
     def sort_public_current(self):
         self.sort_public(self.current_file)
