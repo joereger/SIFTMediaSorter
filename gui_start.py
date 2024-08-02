@@ -5,7 +5,6 @@ from gui_directory_tree import DirectoryTreePane
 from gui_directory_details import DirectoryDetailsPane
 from gui_files_grid import FilesGridPane
 from constants import PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT
-from scroll_position_manager import ScrollPositionManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -38,11 +37,18 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.files_grid, 70)
 
         # Connect signals
-        self.directory_tree.directory_selected.connect(self.directory_details.update_directory)
-        self.directory_tree.directory_selected.connect(self.files_grid.update_directory)
+        self.directory_tree.directory_selected.connect(self.on_directory_selected)
+        self.files_grid.directory_removed.connect(self.on_directory_removed)
+        self.files_grid.stats_updated.connect(self.directory_tree.refresh_stats)
 
-        # Initialize ScrollPositionManager
-        self.scroll_manager = ScrollPositionManager()
+    def on_directory_selected(self, path):
+        self.directory_details.update_directory(path)
+        self.files_grid.update_directory(path)
+
+    def on_directory_removed(self, path):
+        self.directory_tree.update_directory(path)
+        self.directory_details.update_directory(path)
+        self.files_grid.update_directory(path)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

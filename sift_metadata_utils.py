@@ -1,52 +1,61 @@
 import os
 import json
-import logging
 from datetime import datetime, timedelta
 from constants import PUBLIC_ROOT, PRIVATE_ROOT, METADATA_FOLDER
-
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftMetadataUtils:
     def __init__(self, public_root, private_root):
         self.public_root = public_root
         self.private_root = private_root
-        self.metadata = {}
+        self.metadata = {'public': {}, 'private': {}}
         self.index_files = {
             'public': os.path.join(METADATA_FOLDER, 'index', 'public_index.json'),
             'private': os.path.join(METADATA_FOLDER, 'index', 'private_index.json')
         }
+        self.metadata_cache = {}
         self.load_index()
 
     def load_index(self):
         for status, index_file in self.index_files.items():
             if os.path.exists(index_file):
-                with open(index_file, 'r') as f:
-                    self.metadata[status] = json.load(f)
+                try:
+                    with open(index_file, 'r') as f:
+                        self.metadata[status] = json.load(f)
+                except json.JSONDecodeError:
+                    print(f"Error decoding index file for {status}. Starting with empty index.")
+                    self.metadata[status] = {}
             else:
-                self.metadata[status] = {}
-                logging.info(f"No existing index file found for {status}. Starting with empty index.")
+                print(f"No existing index file found for {status}. Starting with empty index.")
 
     def save_index(self):
         for status, index_file in self.index_files.items():
             os.makedirs(os.path.dirname(index_file), exist_ok=True)
             with open(index_file, 'w') as f:
                 json.dump(self.metadata[status], f, indent=2)
-            logging.info(f"Index saved to {index_file}")
+            print(f"Index saved to {index_file}")
 
     def load_metadata_file(self, year, status):
         file_path = os.path.join(METADATA_FOLDER, status, f"{status}_{year}.json")
+        if file_path in self.metadata_cache:
+            return self.metadata_cache[file_path]
+
         if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                return json.load(f)
-        else:
-            return {}
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                self.metadata_cache[file_path] = data
+                return data
+            except json.JSONDecodeError:
+                print(f"Error decoding metadata file: {file_path}. Starting with empty metadata.")
+        return {}
 
     def save_metadata_file(self, year, status, metadata):
         file_path = os.path.join(METADATA_FOLDER, status, f"{status}_{year}.json")
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         with open(file_path, 'w') as f:
             json.dump(metadata, f, indent=2)
-        logging.debug(f"Metadata for {year} ({status}) saved to {file_path}")
+        self.metadata_cache[file_path] = metadata
+        print(f"Metadata for {year} ({status}) saved to {file_path}")
 
     def get_year_from_path(self, path):
         parts = path.split(os.sep)
@@ -71,7 +80,7 @@ class SiftMetadataUtils:
                         metadata[relative_path] = {'status': status, 'last_reviewed': None, 'reviewed': False}
                         file_count += 1
                         self.save_metadata_file(year, status, metadata)
-        logging.info(f"Metadata initialized for directory {directory}, Total files processed: {file_count}")
+        print(f"Metadata initialized for directory {directory}, Total files processed: {file_count}")
 
     def get_file_status(self, file_path):
         root = self.public_root if self.public_root in file_path else self.private_root
@@ -117,7 +126,7 @@ class SiftMetadataUtils:
                 'reviewed': True
             }
             self.save_metadata_file(year, current_status, metadata)
-            logging.info(f"Updated manual review status for {file_path}: {new_status}")
+            print(f"Updated manual review status for {file_path}: {new_status}")
 
     def get_sorting_statistics(self):
         stats = {
@@ -149,7 +158,7 @@ class SiftMetadataUtils:
         else:
             stats['percent_reviewed'] = 0
 
-        logging.info(f"Sorting statistics: {stats}")
+        print(f"Sorting statistics: {stats}")
         return stats
 
     def get_recent_changes(self, days):
@@ -161,7 +170,7 @@ class SiftMetadataUtils:
                 for file, data in metadata.items():
                     if data['last_reviewed'] and datetime.fromisoformat(data['last_reviewed']) > cutoff:
                         recent_changes.append(file)
-        logging.info(f"Recent changes in the last {days} days: {len(recent_changes)} files")
+        print(f"Recent changes in the last {days} days: {len(recent_changes)} files")
         return recent_changes
 
     def export_sorting_data(self, output_file):
@@ -171,7 +180,7 @@ class SiftMetadataUtils:
                 full_metadata.update(self.load_metadata_file(year, status))
         with open(output_file, 'w') as f:
             json.dump(full_metadata, f, indent=2)
-        logging.info(f"Exported sorting data to {output_file}")
+        print(f"Exported sorting data to {output_file}")
 
     def import_sorting_data(self, input_file):
         with open(input_file, 'r') as f:
@@ -186,7 +195,7 @@ class SiftMetadataUtils:
                 metadata[relative_path] = data
                 self.save_metadata_file(year, status, metadata)
         self.save_index()
-        logging.info(f"Imported sorting data from {input_file}")
+        print(f"Imported sorting data from {input_file}")
 
     def validate_file_paths(self):
         invalid_paths = []
@@ -200,7 +209,7 @@ class SiftMetadataUtils:
                         del metadata[relative_path]
                 self.save_metadata_file(year, status, metadata)
         self.save_index()
-        logging.info(f"Validated file paths. Found {len(invalid_paths)} invalid paths")
+        print(f"Validated file paths. Found {len(invalid_paths)} invalid paths")
         return invalid_paths
 
     def update_file_path(self, old_path, new_path):
@@ -214,7 +223,7 @@ class SiftMetadataUtils:
             if old_relative_path in metadata:
                 metadata[new_relative_path] = metadata.pop(old_relative_path)
                 self.save_metadata_file(year, status, metadata)
-                logging.info(f"Updated file path in metadata: {old_path} -> {new_path}")
+                print(f"Updated file path in metadata: {old_path} -> {new_path}")
 
     def update_existing_metadata(self):
         for status in ['public', 'private']:
@@ -227,7 +236,7 @@ class SiftMetadataUtils:
                         updated = True
                 if updated:
                     self.save_metadata_file(year, status, metadata)
-        logging.info("Updated existing metadata with 'reviewed' field")
+        print("Updated existing metadata with 'reviewed' field")
 
-# Run this method once to update existing metadata
-SiftMetadataUtils(PUBLIC_ROOT, PRIVATE_ROOT).update_existing_metadata()
+# Initialize metadata (run this only once if needed)
+# SiftMetadataUtils(PUBLIC_ROOT, PRIVATE_ROOT).update_existing_metadata()

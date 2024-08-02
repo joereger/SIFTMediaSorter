@@ -76,17 +76,21 @@ class FileGridItem(QWidget):
         self.update_border()
 
     def update_border(self):
-        metadata_utils = SiftMetadataUtils(self.parent.sift_io.public_root, self.parent.sift_io.private_root)
-        status, is_reviewed = metadata_utils.get_file_status(self.file_path)
+        try:
+            metadata_utils = SiftMetadataUtils(self.parent.sift_io.public_root, self.parent.sift_io.private_root)
+            status, is_reviewed = metadata_utils.get_file_status(self.file_path)
 
-        if not is_reviewed:
-            self.border_widget.setStyleSheet("QWidget { border: 5px solid gray; background-color: transparent; }")
-        elif status == 'public':
-            self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
-        elif status == 'private':
-            self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
-        else:
-            self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
+            if not is_reviewed:
+                self.border_widget.setStyleSheet("QWidget { border: 5px solid gray; background-color: transparent; }")
+            elif status == 'public':
+                self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
+            elif status == 'private':
+                self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
+            else:
+                self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
+        except Exception as e:
+            print(f"Error updating border for {self.file_path}: {str(e)}")
+            self.border_widget.setStyleSheet("QWidget { border: 5px solid yellow; background-color: transparent; }")  # Yellow border for error
 
     def adjust_content(self):
         if hasattr(self, 'pixmap') and not self.pixmap.isNull():
@@ -114,12 +118,18 @@ class FileGridItem(QWidget):
         self.hover_widget.hide()
 
     def sort_public(self):
-        self.parent.sort_public(self.file_path)
-        self.update_border()
+        try:
+            self.parent.sort_public(self.file_path)
+            self.update_border()
+        except Exception as e:
+            print(f"Error sorting {self.file_path} as public: {str(e)}")
 
     def sort_private(self):
-        self.parent.sort_private(self.file_path)
-        self.update_border()
+        try:
+            self.parent.sort_private(self.file_path)
+            self.update_border()
+        except Exception as e:
+            print(f"Error sorting {self.file_path} as private: {str(e)}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

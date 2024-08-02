@@ -1,11 +1,10 @@
 import os
 from PyQt6.QtWidgets import QScrollArea, QWidget, QGridLayout, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget
-from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from gui_file_grid_item import FileGridItem
 from sift_io_utils import SiftIOUtils
 from sift_metadata_utils import SiftMetadataUtils
-from scroll_position_manager import ScrollPositionManager
 from gui_video_widgets import VideoPlayerWidget
 
 class FilesGridPane(QScrollArea):
@@ -63,12 +62,6 @@ class FilesGridPane(QScrollArea):
         self.sift_io = SiftIOUtils(public_root, private_root, safe_delete_root)
         self.sift_metadata = SiftMetadataUtils(public_root, private_root)
 
-        # Initialize ScrollPositionManager
-        self.scroll_manager = ScrollPositionManager()
-
-        # Connect the vertical scrollbar's valueChanged signal to save the scroll position
-        self.verticalScrollBar().valueChanged.connect(self.on_scroll)
-
         # Connect button signals
         self.public_button.clicked.connect(self.sort_public_current)
         self.private_button.clicked.connect(self.sort_private_current)
@@ -77,57 +70,30 @@ class FilesGridPane(QScrollArea):
     @pyqtSlot(str)
     def update_directory(self, path):
         if path != self.current_path:
-            print(f"Updating directory to: {path}")
-            # Save current scroll position
-            self.save_scroll_position(self.current_path)
-
             self.current_path = path
             self.refresh_grid()
 
     def refresh_grid(self):
         self.clear_grid()
-        if os.path.exists(self.current_path):
+        if os.path.exists(self.current_path) and os.path.isdir(self.current_path):
             self.populate_grid()
-            # Restore scroll position for the new directory after populating the grid
-            QTimer.singleShot(0, self.check_and_restore_scroll_position)
         else:
-            print(f"Directory no longer exists: {self.current_path}")
-            parent_dir = os.path.dirname(self.current_path)
-            if parent_dir == self.current_path:  # We're at the root
-                if self.current_path.startswith(self.public_root):
-                    self.current_path = self.public_root
-                else:
-                    self.current_path = self.private_root
+            self.handle_directory_removal(self.current_path)
+
+    def handle_directory_removal(self, removed_path):
+        parent_dir = os.path.dirname(removed_path)
+        if parent_dir == removed_path:  # We're at the root
+            if removed_path.startswith(self.public_root):
+                self.current_path = self.public_root
             else:
-                self.current_path = parent_dir
-            self.directory_removed.emit(self.current_path)
-            self.populate_grid()
-
-    def on_scroll(self):
-        # Save the scroll position whenever the user scrolls
-        self.save_scroll_position(self.current_path)
-        print(f"Scroll event: saving scroll position for {self.current_path}")
-
-    def save_scroll_position(self, path):
-        if path:
-            position = self.verticalScrollBar().value()
-            self.scroll_manager.save_scroll_position(path, position)
-            print(f"Saved scroll position for {path}: {position}")
-
-    def check_and_restore_scroll_position(self):
-        if self.items:
-            # Ensure the layout is updated before restoring scroll position
-            QTimer.singleShot(0, lambda: self.restore_scroll_position(self.current_path))
+                self.current_path = self.private_root
         else:
-            QTimer.singleShot(50, self.check_and_restore_scroll_position)
-
-    def restore_scroll_position(self, path):
-        position = self.scroll_manager.get_scroll_position(path)
-        self.verticalScrollBar().setValue(position)
-        print(f"Restored scroll position for {path}: {position}")
+            self.current_path = parent_dir
+        
+        self.directory_removed.emit(self.current_path)
+        self.refresh_grid()
 
     def clear_grid(self):
-        print("Clearing grid")
         for i in reversed(range(self.grid_layout.count())): 
             widget = self.grid_layout.itemAt(i).widget()
             if widget:
@@ -138,22 +104,19 @@ class FilesGridPane(QScrollArea):
         self.items = []
 
     def populate_grid(self):
-        print(f"Populating grid for {self.current_path}")
-        files = sorted(os.listdir(self.current_path))
+        files = sorted([f for f in os.listdir(self.current_path) if os.path.isfile(os.path.join(self.current_path, f))])
         row, col = 0, 0
         for file in files:
             file_path = os.path.join(self.current_path, file)
-            if os.path.isfile(file_path):
-                item = FileGridItem(file_path, self)
-                item.file_clicked.connect(self.show_zoomed)
-                self.items.append(item)
-                self.grid_layout.addWidget(item, row, col)
-                col += 1
-                if col == 4:
-                    col = 0
-                    row += 1
+            item = FileGridItem(file_path, self)
+            item.file_clicked.connect(self.show_zoomed)
+            self.items.append(item)
+            self.grid_layout.addWidget(item, row, col)
+            col += 1
+            if col == 4:
+                col = 0
+                row += 1
         self.adjust_grid()
-        print(f"Grid populated with {len(self.items)} items")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -161,20 +124,15 @@ class FilesGridPane(QScrollArea):
 
     def adjust_grid(self):
         width = self.grid_widget.width()
-        # Calculate item width to be 25% of the container width, minus spacing
         item_width = max(100, (width // 4) - self.grid_layout.spacing())
         for item in self.items:
             item.setFixedSize(item_width, item_width)
             item.adjust_content()
-        # Update the grid layout
         self.grid_layout.update()
 
     def show_zoomed(self, file_path):
-        print(f"Show zoomed called for file: {file_path}")
         self.file_selected.emit(file_path)
         self.current_file = file_path
-        # Save the scroll position before opening the zoomed view
-        self.save_scroll_position(self.current_path)
 
         # Clear previous zoomed content
         for i in reversed(range(self.zoomed_layout.count())):
@@ -217,7 +175,6 @@ class FilesGridPane(QScrollArea):
     def sort_public(self, file_path):
         self.sift_io.sort_file(file_path, True)
         self.sift_metadata.update_manual_review_status(file_path, 'public')
-        print(f"Sorted {file_path} as public")
         self.close_zoomed()
         self.refresh_grid()
         self.stats_updated.emit(os.path.dirname(file_path))
@@ -225,12 +182,6 @@ class FilesGridPane(QScrollArea):
     def sort_private(self, file_path):
         self.sift_io.sort_file(file_path, False)
         self.sift_metadata.update_manual_review_status(file_path, 'private')
-        print(f"Sorted {file_path} as private")
         self.close_zoomed()
         self.refresh_grid()
         self.stats_updated.emit(os.path.dirname(file_path))
-
-    def show_grid(self):
-        # This method is called when closing the zoomed image/video
-        print("Showing grid")
-        self.refresh_grid()

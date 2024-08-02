@@ -1,11 +1,13 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSlot, pyqtSignal
 from PyQt6.QtGui import QColor, QPalette
 import os
 from sift_io_utils import SiftIOUtils
 from sift_metadata_utils import SiftMetadataUtils
 
 class DirectoryDetailsPane(QWidget):
+    directory_sorted = pyqtSignal(str)
+
     def __init__(self, public_root, private_root, safe_delete_root):
         super().__init__()
         layout = QVBoxLayout()
@@ -45,20 +47,43 @@ class DirectoryDetailsPane(QWidget):
         self.refresh_stats()
 
     def refresh_stats(self):
-        if self.current_path:
+        if self.current_path and os.path.exists(self.current_path):
             self.dir_name_label.setText(f"Directory: {self.current_path}")
             
             status = self.io_utils.get_directory_status(self.current_path)
             total_files = status['total']
             reviewed_files = status['reviewed']
             self.file_count_label.setText(f"Files: {reviewed_files}/{total_files} reviewed")
+        else:
+            self.dir_name_label.setText("No directory selected")
+            self.file_count_label.setText("")
 
     def sort_public(self):
+        print("sort_public method called")
         if self.current_path:
+            print(f"Sorting {self.current_path} as public")
             self.io_utils.batch_sort_directory(self.current_path, True)
+            sorted_path = self.current_path
+            if not os.path.exists(self.current_path):
+                self.current_path = os.path.dirname(self.current_path)
+                print(f"Directory no longer exists, new current_path: {self.current_path}")
             self.refresh_stats()
+            print(f"Emitting directory_sorted signal with path: {sorted_path}")
+            self.directory_sorted.emit(sorted_path)
+        else:
+            print("No current_path set, cannot sort")
 
     def sort_private(self):
+        print("sort_private method called")
         if self.current_path:
+            print(f"Sorting {self.current_path} as private")
             self.io_utils.batch_sort_directory(self.current_path, False)
+            sorted_path = self.current_path
+            if not os.path.exists(self.current_path):
+                self.current_path = os.path.dirname(self.current_path)
+                print(f"Directory no longer exists, new current_path: {self.current_path}")
             self.refresh_stats()
+            print(f"Emitting directory_sorted signal with path: {sorted_path}")
+            self.directory_sorted.emit(sorted_path)
+        else:
+            print("No current_path set, cannot sort")
