@@ -3,7 +3,6 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from gui_video_widgets import VideoThumbnailWidget
 import os
-from sift_metadata_utils import SiftMetadataUtils
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -77,17 +76,17 @@ class FileGridItem(QWidget):
 
     def update_border(self):
         try:
-            metadata_utils = SiftMetadataUtils(self.parent.sift_io.public_root, self.parent.sift_io.private_root)
-            status, is_reviewed = metadata_utils.get_file_status(self.file_path)
-
+            is_reviewed = self.parent.sift_io.get_file_review_status(self.file_path)
             if not is_reviewed:
                 self.border_widget.setStyleSheet("QWidget { border: 5px solid gray; background-color: transparent; }")
-            elif status == 'public':
-                self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
-            elif status == 'private':
-                self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
             else:
-                self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
+                status = 'public' if self.parent.sift_io.get_file_review_status(self.file_path) else 'private'
+                if status == 'public':
+                    self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
+                elif status == 'private':
+                    self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
+                else:
+                    self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
         except Exception as e:
             print(f"Error updating border for {self.file_path}: {str(e)}")
             self.border_widget.setStyleSheet("QWidget { border: 5px solid yellow; background-color: transparent; }")  # Yellow border for error

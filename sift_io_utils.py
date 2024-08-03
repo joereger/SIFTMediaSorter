@@ -29,24 +29,10 @@ class SiftIOUtils:
             current_status = self.metadata_utils.get_file_status(path)
             new_status = 'public' if is_public else 'private'
             if current_status != new_status:
-                new_path, new_dir_created, removed_dirs = self.move_file(path, is_public)
+                new_path, _, _ = self.move_file(path, is_public)
                 self.metadata_utils.update_manual_review_status(new_path, new_status)
-                if new_dir_created and self.gui_refresh_callback:
-                    self.gui_refresh_callback(os.path.dirname(new_path))
-                for removed_dir in removed_dirs:
-                    if self.gui_refresh_callback:
-                        self.gui_refresh_callback(removed_dir)
             else:
                 self.metadata_utils.update_manual_review_status(path, new_status)
-        
-        # Refresh stats for the current directory and its parents
-        self.refresh_directory_stats(os.path.dirname(path))
-
-        # Refresh GUI for the source and destination directories
-        if self.gui_refresh_callback:
-            self.gui_refresh_callback(os.path.dirname(path))
-            new_root = self.public_root if is_public else self.private_root
-            self.gui_refresh_callback(os.path.join(new_root, os.path.relpath(os.path.dirname(path), self.public_root if not is_public else self.private_root)))
 
     def move_file(self, file_path, is_public):
         if os.path.isdir(file_path):
@@ -107,21 +93,25 @@ class SiftIOUtils:
 
         return removed_dirs
 
-    def batch_sort_directory(self, dir_path, is_public):
+    def batch_sort_directory(self, dir_path, is_public, progress_callback=None):
         logging.info(f"Batch sorting directory: {dir_path}")
-        files_sorted = 0
-        for root, dirs, files in os.walk(dir_path):
+        files_to_sort = []
+        for root, _, files in os.walk(dir_path):
             for file in files:
                 file_path = os.path.join(root, file)
                 current_status = self.metadata_utils.get_file_status(file_path)
                 new_status = 'public' if is_public else 'private'
                 if current_status != new_status:
-                    self.sort_file(file_path, is_public)
-                    files_sorted += 1
-            for dir in dirs:
-                subdir_path = os.path.join(root, dir)
-                self.batch_sort_directory(subdir_path, is_public)
-        logging.info(f"Completed batch sorting of directory: {dir_path}. {files_sorted} files sorted.")
+                    files_to_sort.append(file_path)
+
+        total_files = len(files_to_sort)
+        for i, file_path in enumerate(files_to_sort):
+            self.sort_file(file_path, is_public)
+            if progress_callback:
+                progress_callback(int((i + 1) / total_files * 100))
+
+        self.refresh_directory_stats(dir_path)
+        logging.info(f"Completed batch sorting of directory: {dir_path}. {total_files} files sorted.")
 
     def undo_sort(self, file_path):
         logging.info(f"Undo sort not implemented for: {file_path}")
@@ -206,11 +196,25 @@ class SiftIOUtils:
         return status
 
     def refresh_directory_stats(self, start_path):
+        paths_to_refresh = []
         current_path = start_path
         while current_path != self.public_root and current_path != self.private_root:
-            status = self.get_directory_status(current_path)
-            logging.info(f"Refreshed stats for {current_path}: {status}")
+            paths_to_refresh.append(current_path)
             current_path = os.path.dirname(current_path)
-        # Refresh root directory stats
-        root_status = self.get_directory_status(current_path)
-        logging.info(f"Refreshed stats for root {current_path}: {root_status}")
+        paths_to_refresh.append(current_path)  # Add root directory
+
+        for path in reversed(paths_to_refresh):
+            status = self.get_directory_status(path)
+            logging.info(f"Refreshed stats for {path}: {status}")
+            if self.gui_refresh_callback:
+                self.gui_refresh_callback(path)
+
+    # New wrapper method for accessing review status
+    def get_file_review_status(self, file_path):
+        status, is_reviewed = self.metadata_utils.get_file_status(file_path)
+        return is_reviewed
+
+    # New wrapper method for updating review status
+    def update_file_review_status(self, file_path, is_public):
+        new_status = 'public' if is_public else 'private'
+        self.metadata_utils.update_manual_review_status(file_path, new_status)

@@ -4,7 +4,6 @@ from PyQt6.QtCore import Qt, pyqtSlot, pyqtSignal, QSize
 from PyQt6.QtGui import QPixmap
 from gui_file_grid_item import FileGridItem
 from sift_io_utils import SiftIOUtils
-from sift_metadata_utils import SiftMetadataUtils
 from gui_video_widgets import VideoPlayerWidget
 
 class FilesGridPane(QScrollArea):
@@ -68,9 +67,8 @@ class FilesGridPane(QScrollArea):
         self.public_root = public_root
         self.private_root = private_root
 
-        # Initialize SiftIOUtils and SiftMetadataUtils
+        # Initialize SiftIOUtils
         self.sift_io = SiftIOUtils(public_root, private_root, safe_delete_root)
-        self.sift_metadata = SiftMetadataUtils(public_root, private_root)
 
         # Connect button signals
         self.public_button.clicked.connect(self.sort_public_current)
@@ -195,14 +193,12 @@ class FilesGridPane(QScrollArea):
 
     def sort_public(self, file_path):
         self.sift_io.sort_file(file_path, True)
-        self.sift_metadata.update_manual_review_status(file_path, 'public')
         self.close_zoomed()
         self.refresh_grid()
         self.stats_updated.emit(os.path.dirname(file_path))
 
     def sort_private(self, file_path):
         self.sift_io.sort_file(file_path, False)
-        self.sift_metadata.update_manual_review_status(file_path, 'private')
         self.close_zoomed()
         self.refresh_grid()
         self.stats_updated.emit(os.path.dirname(file_path))

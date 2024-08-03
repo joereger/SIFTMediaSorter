@@ -1,9 +1,35 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
-from PyQt6.QtCore import pyqtSlot, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QApplication
+from PyQt6.QtCore import pyqtSlot, pyqtSignal, QThread, Qt
 from PyQt6.QtGui import QColor, QPalette
 import os
+import logging
 from sift_io_utils import SiftIOUtils
-from sift_metadata_utils import SiftMetadataUtils
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+class SortWorker(QThread):
+    finished = pyqtSignal()
+    progress = pyqtSignal(int)
+    error = pyqtSignal(str)
+
+    def __init__(self, io_utils, path, is_public):
+        super().__init__()
+        self.io_utils = io_utils
+        self.path = path
+        self.is_public = is_public
+        self.is_running = True
+
+    def run(self):
+        try:
+            self.io_utils.batch_sort_directory(self.path, self.is_public, self.progress.emit)
+            if self.is_running:
+                self.finished.emit()
+        except Exception as e:
+            logging.error(f"Error in SortWorker: {str(e)}")
+            self.error.emit(str(e))
+
+    def stop(self):
+        self.is_running = False
 
 class DirectoryDetailsPane(QWidget):
     directory_sorted = pyqtSignal(str)
@@ -35,11 +61,11 @@ class DirectoryDetailsPane(QWidget):
         self.public_button.clicked.connect(self.sort_public)
         self.private_button.clicked.connect(self.sort_private)
 
-        # Initialize SiftIOUtils and SiftMetadataUtils
+        # Initialize SiftIOUtils
         self.io_utils = SiftIOUtils(public_root, private_root, safe_delete_root)
-        self.metadata_utils = SiftMetadataUtils(public_root, private_root)
 
         self.current_path = None
+        self.sort_worker = None
 
     @pyqtSlot(str)
     def update_directory(self, path):
@@ -58,32 +84,49 @@ class DirectoryDetailsPane(QWidget):
             self.dir_name_label.setText("No directory selected")
             self.file_count_label.setText("")
 
-    def sort_public(self):
-        print("sort_public method called")
+    def batch_sort(self, is_public):
         if self.current_path:
-            print(f"Sorting {self.current_path} as public")
-            self.io_utils.batch_sort_directory(self.current_path, True)
-            sorted_path = self.current_path
-            if not os.path.exists(self.current_path):
-                self.current_path = os.path.dirname(self.current_path)
-                print(f"Directory no longer exists, new current_path: {self.current_path}")
-            self.refresh_stats()
-            print(f"Emitting directory_sorted signal with path: {sorted_path}")
-            self.directory_sorted.emit(sorted_path)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            self.public_button.setEnabled(False)
+            self.private_button.setEnabled(False)
+            
+            self.sort_worker = SortWorker(self.io_utils, self.current_path, is_public)
+            self.sort_worker.finished.connect(self.on_sort_finished)
+            self.sort_worker.progress.connect(self.update_progress)
+            self.sort_worker.error.connect(self.on_sort_error)
+            self.sort_worker.start()
         else:
-            print("No current_path set, cannot sort")
+            logging.warning("No current_path set, cannot sort")
+
+    def on_sort_finished(self):
+        QApplication.restoreOverrideCursor()
+        self.public_button.setEnabled(True)
+        self.private_button.setEnabled(True)
+        self.refresh_stats()
+        self.directory_sorted.emit(self.current_path)
+        self.sort_worker = None
+        logging.info("Sorting finished successfully")
+
+    def on_sort_error(self, error_message):
+        QApplication.restoreOverrideCursor()
+        self.public_button.setEnabled(True)
+        self.private_button.setEnabled(True)
+        logging.error(f"Sorting error: {error_message}")
+        # Here you might want to show an error message to the user
+        self.sort_worker = None
+
+    def update_progress(self, value):
+        # Update progress bar or status message
+        logging.info(f"Sorting progress: {value}%")
+
+    def sort_public(self):
+        self.batch_sort(True)
 
     def sort_private(self):
-        print("sort_private method called")
-        if self.current_path:
-            print(f"Sorting {self.current_path} as private")
-            self.io_utils.batch_sort_directory(self.current_path, False)
-            sorted_path = self.current_path
-            if not os.path.exists(self.current_path):
-                self.current_path = os.path.dirname(self.current_path)
-                print(f"Directory no longer exists, new current_path: {self.current_path}")
-            self.refresh_stats()
-            print(f"Emitting directory_sorted signal with path: {sorted_path}")
-            self.directory_sorted.emit(sorted_path)
-        else:
-            print("No current_path set, cannot sort")
+        self.batch_sort(False)
+
+    def closeEvent(self, event):
+        if self.sort_worker and self.sort_worker.isRunning():
+            self.sort_worker.stop()
+            self.sort_worker.wait()
+        super().closeEvent(event)

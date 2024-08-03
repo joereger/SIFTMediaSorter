@@ -38,6 +38,7 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.directory_tree.directory_selected.connect(self.on_directory_selected)
+        self.directory_tree.directory_refreshed.connect(self.on_directory_refreshed)
         self.files_grid.directory_removed.connect(self.on_directory_removed)
         self.files_grid.stats_updated.connect(self.directory_tree.refresh_stats)
 
@@ -47,6 +48,10 @@ class MainWindow(QMainWindow):
 
     def on_directory_removed(self, path):
         self.directory_tree.update_directory(path)
+        self.directory_details.update_directory(path)
+        self.files_grid.update_directory(path)
+
+    def on_directory_refreshed(self, path):
         self.directory_details.update_directory(path)
         self.files_grid.update_directory(path)
 
