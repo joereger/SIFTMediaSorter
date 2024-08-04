@@ -26,13 +26,22 @@ class SiftIOUtils:
             self.batch_sort_directory(path, is_public)
         else:
             logging.debug(f"Sorting file: {path}")
-            current_status = self.metadata_utils.get_file_status(path)
-            new_status = 'public' if is_public else 'private'
-            if current_status != new_status:
-                new_path, _, _ = self.move_file(path, is_public, is_batch_operation)
-                self.metadata_utils.update_manual_review_status(new_path, new_status)
+            current_root = self.private_root if path.startswith(self.private_root) else self.public_root
+            target_root = self.public_root if is_public else self.private_root
+            
+            if current_root == target_root:
+                # File is already in the correct root, just update metadata
+                self.update_file_metadata(path, is_public)
+                return path
             else:
-                self.metadata_utils.update_manual_review_status(path, new_status)
+                # File needs to be moved
+                new_path, _, _ = self.move_file(path, is_public, is_batch_operation)
+                return new_path
+
+    def update_file_metadata(self, path, is_public):
+        new_status = 'public' if is_public else 'private'
+        self.metadata_utils.update_manual_review_status(path, new_status)
+        logging.debug(f"Updated metadata for {path}: status={new_status}, reviewed=True")
 
     def move_file(self, file_path, is_public, is_batch_operation=False):
         if os.path.isdir(file_path):
@@ -122,24 +131,21 @@ class SiftIOUtils:
 
     def batch_sort_directory(self, dir_path, is_public, progress_callback=None):
         logging.debug(f"batch_sort_directory() called on: {dir_path}")
-        files_to_sort = []
+        files_to_process = []
         for root, _, files in os.walk(dir_path):
             for file in files:
                 file_path = os.path.join(root, file)
-                current_status = self.metadata_utils.get_file_status(file_path)
-                new_status = 'public' if is_public else 'private'
-                if current_status != new_status:
-                    files_to_sort.append(file_path)
+                files_to_process.append(file_path)
 
-        total_files = len(files_to_sort)
-        for i, file_path in enumerate(files_to_sort):
+        total_files = len(files_to_process)
+        for i, file_path in enumerate(files_to_process):
             self.sort_file(file_path, is_public, is_batch_operation=True)
             if progress_callback:
                 progress_callback(int((i + 1) / total_files * 100))
 
         self.batch_cleanup_empty_directories(dir_path)
         self.refresh_directory_stats(dir_path)
-        logging.debug(f"Completed batch sorting of directory: {dir_path}. {total_files} files sorted.")
+        logging.debug(f"Completed batch sorting of directory: {dir_path}. {total_files} files processed.")
 
     def cleanup_empty_directories(self, directory):
         logging.debug(f"Starting cleanup of empty directories in: {directory}")
@@ -265,12 +271,10 @@ class SiftIOUtils:
             if self.gui_refresh_callback:
                 self.gui_refresh_callback(path)
 
-    # New wrapper method for accessing review status
     def get_file_review_status(self, file_path):
         status, is_reviewed = self.metadata_utils.get_file_status(file_path)
         return is_reviewed
 
-    # New wrapper method for updating review status
     def update_file_review_status(self, file_path, is_public):
         new_status = 'public' if is_public else 'private'
         self.metadata_utils.update_manual_review_status(file_path, new_status)

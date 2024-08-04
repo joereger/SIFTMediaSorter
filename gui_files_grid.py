@@ -202,3 +202,9 @@ class FilesGridPane(QScrollArea):
         self.close_zoomed()
         self.refresh_grid()
         self.stats_updated.emit(os.path.dirname(file_path))
+
+    def refresh_metadata(self, path):
+        if path == self.current_path:
+            for item in self.items:
+                item.update_border()
+        self.adjust_grid()

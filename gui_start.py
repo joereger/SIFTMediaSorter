@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self.directory_tree.directory_refreshed.connect(self.on_directory_refreshed)
         self.files_grid.directory_removed.connect(self.on_directory_removed)
         self.files_grid.stats_updated.connect(self.directory_tree.refresh_stats)
+        self.directory_details.directory_sorted.connect(self.on_directory_sorted)
 
     def on_directory_selected(self, path):
         self.directory_details.update_directory(path)
@@ -54,6 +55,10 @@ class MainWindow(QMainWindow):
     def on_directory_refreshed(self, path):
         self.directory_details.update_directory(path)
         self.files_grid.update_directory(path)
+
+    def on_directory_sorted(self, path):
+        self.directory_tree.refresh_stats(path)
+        self.files_grid.refresh_metadata(path)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -97,16 +97,27 @@ class SiftMetadataUtils:
             logging.debug(f"Updated manual review status for {file_path}: {new_status}")
 
     def update_file_path(self, old_path, new_path):
-        root = self.public_root if self.public_root in old_path else self.private_root
-        old_relative_path = os.path.relpath(old_path, root)
-        new_relative_path = os.path.relpath(new_path, root)
-        year = self.get_year_from_path(old_relative_path)
-        if year:
-            status = 'public' if root == self.public_root else 'private'
-            metadata = self.load_metadata_file(year, status)
-            if old_relative_path in metadata:
-                metadata[new_relative_path] = metadata.pop(old_relative_path)
-                self.save_metadata_file(year, status, metadata)
+        old_root = self.public_root if self.public_root in old_path else self.private_root
+        new_root = self.public_root if self.public_root in new_path else self.private_root
+        old_relative_path = os.path.relpath(old_path, old_root)
+        new_relative_path = os.path.relpath(new_path, new_root)
+        old_year = self.get_year_from_path(old_relative_path)
+        new_year = self.get_year_from_path(new_relative_path)
+        
+        if old_year:
+            old_status = 'public' if old_root == self.public_root else 'private'
+            old_metadata = self.load_metadata_file(old_year, old_status)
+            if old_relative_path in old_metadata:
+                file_data = old_metadata.pop(old_relative_path)
+                self.save_metadata_file(old_year, old_status, old_metadata)
+                
+                if new_year:
+                    new_status = 'public' if new_root == self.public_root else 'private'
+                    new_metadata = self.load_metadata_file(new_year, new_status)
+                    new_metadata[new_relative_path] = file_data
+                    new_metadata[new_relative_path]['status'] = new_status
+                    self.save_metadata_file(new_year, new_status, new_metadata)
+                
                 logging.debug(f"Updated file path in metadata: {old_path} -> {new_path}")
 
 # Initialize metadata (run this only once if needed)
