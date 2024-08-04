@@ -11,7 +11,6 @@ class ScrollPositionManager:
     def save_scroll_position(self, path, position):
         if path:
             self.scroll_positions[path] = position
-            #print(f"Saved scroll position for {path}: {position}")
 
     def get_scroll_position(self, path):
         return self.scroll_positions.get(path, 0)

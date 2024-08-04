@@ -105,7 +105,7 @@ class DirectoryDetailsPane(QWidget):
         self.refresh_stats()
         self.directory_sorted.emit(self.current_path)
         self.sort_worker = None
-        logging.info("Sorting finished successfully")
+        logging.debug("Sorting finished successfully")
 
     def on_sort_error(self, error_message):
         QApplication.restoreOverrideCursor()
@@ -117,7 +117,7 @@ class DirectoryDetailsPane(QWidget):
 
     def update_progress(self, value):
         # Update progress bar or status message
-        logging.info(f"Sorting progress: {value}%")
+        logging.debug(f"Sorting progress: {value}%")
 
     def sort_public(self):
         self.batch_sort(True)

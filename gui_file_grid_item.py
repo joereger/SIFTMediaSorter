@@ -3,6 +3,9 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from gui_video_widgets import VideoThumbnailWidget
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -88,7 +91,7 @@ class FileGridItem(QWidget):
                 else:
                     self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
         except Exception as e:
-            print(f"Error updating border for {self.file_path}: {str(e)}")
+            logging.error(f"Error updating border for {self.file_path}: {str(e)}")
             self.border_widget.setStyleSheet("QWidget { border: 5px solid yellow; background-color: transparent; }")  # Yellow border for error
 
     def adjust_content(self):
@@ -121,14 +124,14 @@ class FileGridItem(QWidget):
             self.parent.sort_public(self.file_path)
             self.update_border()
         except Exception as e:
-            print(f"Error sorting {self.file_path} as public: {str(e)}")
+            logging.error(f"Error sorting {self.file_path} as public: {str(e)}")
 
     def sort_private(self):
         try:
             self.parent.sort_private(self.file_path)
             self.update_border()
         except Exception as e:
-            print(f"Error sorting {self.file_path} as private: {str(e)}")
+            logging.error(f"Error sorting {self.file_path} as private: {str(e)}")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

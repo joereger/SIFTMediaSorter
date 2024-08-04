@@ -17,26 +17,26 @@ class SiftIOUtils:
 
     def list_directory(self, directory):
         contents = os.listdir(directory)
-        logging.info(f"Listed directory {directory}: {len(contents)} items found")
+        logging.debug(f"Listed directory {directory}: {len(contents)} items found")
         return contents
 
-    def sort_file(self, path, is_public):
+    def sort_file(self, path, is_public, is_batch_operation=False):
         if os.path.isdir(path):
-            logging.info(f"Sorting directory: {path}")
+            logging.debug(f"sort_file() called on a directory: {path}")
             self.batch_sort_directory(path, is_public)
         else:
-            logging.info(f"Sorting file: {path}")
+            logging.debug(f"Sorting file: {path}")
             current_status = self.metadata_utils.get_file_status(path)
             new_status = 'public' if is_public else 'private'
             if current_status != new_status:
-                new_path, _, _ = self.move_file(path, is_public)
+                new_path, _, _ = self.move_file(path, is_public, is_batch_operation)
                 self.metadata_utils.update_manual_review_status(new_path, new_status)
             else:
                 self.metadata_utils.update_manual_review_status(path, new_status)
 
-    def move_file(self, file_path, is_public):
+    def move_file(self, file_path, is_public, is_batch_operation=False):
         if os.path.isdir(file_path):
-            logging.info(f"Skipping directory in move_file: {file_path}")
+            logging.debug(f"Skipping directory in move_file: {file_path}")
             return file_path, False, []
 
         source_root = self.public_root if file_path.startswith(self.public_root) else self.private_root
@@ -44,7 +44,7 @@ class SiftIOUtils:
         rel_path = os.path.relpath(file_path, source_root)
         dest_path = os.path.join(dest_root, rel_path)
 
-        logging.info(f"Moving file from {file_path} to {dest_path}")
+        logging.debug(f"Moving file from {file_path} to {dest_path}")
 
         new_dir_created = self.create_directory_if_not_exists(os.path.dirname(dest_path))
 
@@ -54,17 +54,24 @@ class SiftIOUtils:
             while os.path.exists(f"{base}_{counter}{ext}"):
                 counter += 1
             dest_path = f"{base}_{counter}{ext}"
-            logging.info(f"Destination file already exists. Renamed to {dest_path}")
+            logging.debug(f"Destination file already exists. Renamed to {dest_path}")
 
         self.create_backup(file_path)
         shutil.copy2(file_path, dest_path)
 
         if self.verify_file_integrity(file_path, dest_path):
             os.remove(file_path)
-            logging.info(f"File moved successfully: {file_path} -> {dest_path}")
+            logging.debug(f"File moved successfully: {file_path} -> {dest_path}")
             self.metadata_utils.update_file_path(file_path, dest_path)
-            removed_dirs = self.remove_empty_directories(os.path.dirname(file_path))
-            return dest_path, new_dir_created, removed_dirs
+            
+            # Check and remove empty directory only for non-batch operations
+            if not is_batch_operation:
+                original_dir = os.path.dirname(file_path)
+                dir_removed = self.check_and_remove_empty_directory(original_dir)
+            else:
+                dir_removed = False
+            
+            return dest_path, new_dir_created, dir_removed
         else:
             logging.error(f"File integrity check failed for {file_path}")
             raise Exception("File integrity check failed")
@@ -72,29 +79,49 @@ class SiftIOUtils:
     def create_directory_if_not_exists(self, directory):
         if not os.path.exists(directory):
             os.makedirs(directory)
-            logging.info(f"Created new directory: {directory}")
+            logging.debug(f"Created new directory: {directory}")
             return True
         return False
 
-    def remove_empty_directories(self, path):
-        removed_dirs = []
-        for root, dirs, files in os.walk(path, topdown=False):
-            for dir in dirs:
-                dir_path = os.path.join(root, dir)
-                if not os.listdir(dir_path):
-                    os.rmdir(dir_path)
-                    removed_dirs.append(dir_path)
-                    logging.info(f"Removed empty directory: {dir_path}")
+    def check_and_remove_empty_directory(self, directory):
+        logging.debug(f"Checking directory for removal: {directory}")
+        if directory == self.public_root or directory == self.private_root:
+            logging.debug(f"Skipping root directory: {directory}")
+            return False  # Don't remove root directories
+        
+        try:
+            # Remove .DS_Store if present
+            ds_store_path = os.path.join(directory, '.DS_Store')
+            if os.path.exists(ds_store_path):
+                os.remove(ds_store_path)
+                logging.debug(f"Removed .DS_Store file from {directory}")
 
-        if not os.listdir(path):
-            os.rmdir(path)
-            removed_dirs.append(path)
-            logging.info(f"Removed empty directory: {path}")
-
-        return removed_dirs
+            # Get contents, ignoring .DS_Store
+            contents = [item for item in os.listdir(directory) if item != '.DS_Store']
+            logging.debug(f"Directory contents (excluding .DS_Store): {contents}")
+            
+            if not contents:
+                logging.debug(f"Directory appears empty, double-checking: {directory}")
+                # Double-check for any hidden files, ignoring .DS_Store
+                scanned_contents = [entry for entry in os.scandir(directory) if entry.name != '.DS_Store']
+                logging.debug(f"Scanned directory contents (excluding .DS_Store): {[entry.name for entry in scanned_contents]}")
+                
+                if not scanned_contents:
+                    logging.debug(f"Attempting to remove empty directory: {directory}")
+                    os.rmdir(directory)
+                    logging.debug(f"Successfully removed empty directory: {directory}")
+                    return True
+                else:
+                    logging.debug(f"Directory not empty after scan, skipping removal: {directory}")
+            else:
+                logging.debug(f"Directory not empty, skipping removal: {directory}")
+        except Exception as e:
+            logging.error(f"Error checking/removing directory {directory}: {str(e)}")
+        
+        return False
 
     def batch_sort_directory(self, dir_path, is_public, progress_callback=None):
-        logging.info(f"Batch sorting directory: {dir_path}")
+        logging.debug(f"batch_sort_directory() called on: {dir_path}")
         files_to_sort = []
         for root, _, files in os.walk(dir_path):
             for file in files:
@@ -106,15 +133,32 @@ class SiftIOUtils:
 
         total_files = len(files_to_sort)
         for i, file_path in enumerate(files_to_sort):
-            self.sort_file(file_path, is_public)
+            self.sort_file(file_path, is_public, is_batch_operation=True)
             if progress_callback:
                 progress_callback(int((i + 1) / total_files * 100))
 
+        self.batch_cleanup_empty_directories(dir_path)
         self.refresh_directory_stats(dir_path)
-        logging.info(f"Completed batch sorting of directory: {dir_path}. {total_files} files sorted.")
+        logging.debug(f"Completed batch sorting of directory: {dir_path}. {total_files} files sorted.")
+
+    def cleanup_empty_directories(self, directory):
+        logging.debug(f"Starting cleanup of empty directories in: {directory}")
+        for root, dirs, files in os.walk(directory, topdown=False):
+            for dir_name in dirs:
+                dir_path = os.path.join(root, dir_name)
+                self.check_and_remove_empty_directory(dir_path)
+        
+        # Check the root directory itself
+        self.check_and_remove_empty_directory(directory)
+        logging.debug(f"Completed cleanup of empty directories in: {directory}")
+
+    def batch_cleanup_empty_directories(self, dir_path):
+        logging.debug(f"Starting batch cleanup of empty directories for: {dir_path}")
+        self.cleanup_empty_directories(dir_path)
+        logging.debug(f"Completed batch cleanup of empty directories for: {dir_path}")
 
     def undo_sort(self, file_path):
-        logging.info(f"Undo sort not implemented for: {file_path}")
+        logging.debug(f"Undo sort not implemented for: {file_path}")
         # Implementation depends on how you want to handle undo
         pass
 
@@ -124,7 +168,7 @@ class SiftIOUtils:
             'modification_time': os.path.getmtime(file_path),
             'size': os.path.getsize(file_path)
         }
-        logging.info(f"Retrieved metadata for {file_path}: {metadata}")
+        logging.debug(f"Retrieved metadata for {file_path}: {metadata}")
         return metadata
 
     def generate_file_checksum(self, file_path):
@@ -133,12 +177,12 @@ class SiftIOUtils:
             buf = f.read()
             hasher.update(buf)
         checksum = hasher.hexdigest()
-        logging.info(f"Generated checksum for {file_path}: {checksum}")
+        logging.debug(f"Generated checksum for {file_path}: {checksum}")
         return checksum
 
     def verify_file_integrity(self, source_path, destination_path):
         result = self.generate_file_checksum(source_path) == self.generate_file_checksum(destination_path)
-        logging.info(f"File integrity verification: {source_path} -> {destination_path}: {'Passed' if result else 'Failed'}")
+        logging.debug(f"File integrity verification: {source_path} -> {destination_path}: {'Passed' if result else 'Failed'}")
         return result
 
     def search_files(self, query, root_directory):
@@ -147,20 +191,20 @@ class SiftIOUtils:
             for file in files:
                 if query.lower() in file.lower():
                     results.append(os.path.join(root, file))
-        logging.info(f"Search for '{query}' in {root_directory}: {len(results)} results found")
+        logging.debug(f"Search for '{query}' in {root_directory}: {len(results)} results found")
         return results
 
     def create_backup(self, file_path):
         if os.path.isdir(file_path):
-            logging.info(f"Skipping backup for directory: {file_path}")
+            logging.debug(f"Skipping backup for directory: {file_path}")
             return
         backup_dir = os.path.join(self.safe_delete_root, 'public' if self.metadata_utils.get_file_status(file_path) == 'public' else 'private')
         os.makedirs(backup_dir, exist_ok=True)
         backup_path = shutil.copy2(file_path, backup_dir)
-        logging.info(f"Created backup: {file_path} -> {backup_path}")
+        logging.debug(f"Created backup: {file_path} -> {backup_path}")
 
     def restore_from_backup(self, file_path):
-        logging.info(f"Restore from backup not implemented for: {file_path}")
+        logging.debug(f"Restore from backup not implemented for: {file_path}")
         # Implementation depends on how you want to handle backups
         pass
 
@@ -173,7 +217,7 @@ class SiftIOUtils:
                 if datetime.fromtimestamp(os.path.getctime(file_path)) < cutoff:
                     os.remove(file_path)
                     cleaned_files += 1
-        logging.info(f"Cleaned up {cleaned_files} files older than {days_old} days from safe delete folder")
+        logging.debug(f"Cleaned up {cleaned_files} files older than {days_old} days from safe delete folder")
 
     def get_directory_status(self, dir_path):
         status = {'public': 0, 'private': 0, 'reviewed': 0, 'unreviewed': 0, 'total': 0}
@@ -192,7 +236,7 @@ class SiftIOUtils:
                     status['reviewed'] += 1
                 else:
                     status['unreviewed'] += 1
-        logging.info(f"Directory status for {dir_path}: {status}")
+        logging.debug(f"Directory status for {dir_path}: {status}")
         return status
 
     def refresh_directory_stats(self, start_path):
@@ -205,7 +249,7 @@ class SiftIOUtils:
 
         for path in reversed(paths_to_refresh):
             status = self.get_directory_status(path)
-            logging.info(f"Refreshed stats for {path}: {status}")
+            logging.debug(f"Refreshed stats for {path}: {status}")
             if self.gui_refresh_callback:
                 self.gui_refresh_callback(path)
 

@@ -4,6 +4,9 @@ from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from gui_video_widgets import VideoPlayerWidget
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -108,7 +111,7 @@ class ZoomedView(QWidget):
         if self.current_file_path:
             self.sift_io.sort_file(self.current_file_path, True)
             self.sift_metadata.update_manual_review_status(self.current_file_path, 'public')
-            print(f"Sorted {self.current_file_path} as public")
+            logging.debug(f"Sorted {self.current_file_path} as public")
             self.stats_updated.emit(os.path.dirname(self.current_file_path))
         self.close_zoomed()
 
@@ -116,7 +119,7 @@ class ZoomedView(QWidget):
         if self.current_file_path:
             self.sift_io.sort_file(self.current_file_path, False)
             self.sift_metadata.update_manual_review_status(self.current_file_path, 'private')
-            print(f"Sorted {self.current_file_path} as private")
+            logging.debug(f"Sorted {self.current_file_path} as private")
             self.stats_updated.emit(os.path.dirname(self.current_file_path))
         self.close_zoomed()
 
