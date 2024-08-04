@@ -32,11 +32,15 @@ class SiftIOUtils:
             if current_root == target_root:
                 # File is already in the correct root, just update metadata
                 self.update_file_metadata(path, is_public)
-                return path
+                new_path = path
             else:
                 # File needs to be moved
                 new_path, _, _ = self.move_file(path, is_public, is_batch_operation)
-                return new_path
+            
+            if not is_batch_operation:
+                self.refresh_directory_stats(os.path.dirname(new_path))
+            
+            return new_path
 
     def update_file_metadata(self, path, is_public):
         new_status = 'public' if is_public else 'private'
@@ -144,6 +148,7 @@ class SiftIOUtils:
                 progress_callback(int((i + 1) / total_files * 100))
 
         self.batch_cleanup_empty_directories(dir_path)
+        self.metadata_utils.save_index()
         self.refresh_directory_stats(dir_path)
         logging.debug(f"Completed batch sorting of directory: {dir_path}. {total_files} files processed.")
 
