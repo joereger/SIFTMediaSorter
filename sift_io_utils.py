@@ -163,11 +163,23 @@ class SiftIOUtils:
         pass
 
     def get_file_metadata(self, file_path):
-        metadata = {
+        # Get basic file system metadata
+        basic_metadata = {
             'creation_time': os.path.getctime(file_path),
             'modification_time': os.path.getmtime(file_path),
             'size': os.path.getsize(file_path)
         }
+        
+        # Get custom metadata using SiftMetadataUtils
+        status, is_reviewed = self.metadata_utils.get_file_status(file_path)
+        custom_metadata = {
+            'status': status,
+            'reviewed': is_reviewed
+        }
+        
+        # Merge basic and custom metadata
+        metadata = {**basic_metadata, **custom_metadata}
+        
         logging.debug(f"Retrieved metadata for {file_path}: {metadata}")
         return metadata
 

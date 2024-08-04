@@ -79,16 +79,29 @@ class FileGridItem(QWidget):
 
     def update_border(self):
         try:
-            is_reviewed = self.parent.sift_io.get_file_review_status(self.file_path)
+            # Get the metadata for the file
+            metadata = self.parent.sift_io.get_file_metadata(self.file_path)
+            logging.debug(f"Metadata for {self.file_path}: {metadata}")
+            
+            # Check if the file is reviewed
+            is_reviewed = metadata.get('reviewed', False)
+            
+            # Get the status (public/private)
+            status = metadata.get('status', 'public')
+            
             if not is_reviewed:
+                # GREY: if reviewed = false or not present in the metadata
                 self.border_widget.setStyleSheet("QWidget { border: 5px solid gray; background-color: transparent; }")
             else:
-                status = 'public' if self.parent.sift_io.get_file_review_status(self.file_path) else 'private'
+                # File is reviewed, now check the status
                 if status == 'public':
+                    # GREEN: reviewed = true and status=public
                     self.border_widget.setStyleSheet("QWidget { border: 5px solid #4CAF50; background-color: transparent; }")  # Green border
                 elif status == 'private':
+                    # RED: reviewed = true and status=private
                     self.border_widget.setStyleSheet("QWidget { border: 5px solid #F44336; background-color: transparent; }")  # Red border
                 else:
+                    # Unknown status, use no border
                     self.border_widget.setStyleSheet("QWidget { border: none; background-color: transparent; }")
         except Exception as e:
             logging.error(f"Error updating border for {self.file_path}: {str(e)}")
