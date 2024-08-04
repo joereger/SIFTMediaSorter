@@ -20,9 +20,9 @@ class SiftIOUtils:
         logging.debug(f"Listed directory {directory}: {len(contents)} items found")
         return contents
 
-    def sort_file(self, path, is_public, is_batch_operation=False):
+    def sort(self, path, is_public):
         if os.path.isdir(path):
-            logging.debug(f"sort_file() called on a directory: {path}")
+            logging.debug(f"sort() called on a directory: {path}")
             self.batch_sort_directory(path, is_public)
         else:
             logging.debug(f"Sorting file: {path}")
@@ -35,10 +35,9 @@ class SiftIOUtils:
                 new_path = path
             else:
                 # File needs to be moved
-                new_path, _, _ = self.move_file(path, is_public, is_batch_operation)
+                new_path, _, _ = self.move_file(path, is_public)
             
-            if not is_batch_operation:
-                self.refresh_directory_stats(os.path.dirname(new_path))
+            self.refresh_directory_stats(os.path.dirname(new_path))
             
             return new_path
 
@@ -47,7 +46,7 @@ class SiftIOUtils:
         self.metadata_utils.update_manual_review_status(path, new_status)
         logging.debug(f"Updated metadata for {path}: status={new_status}, reviewed=True")
 
-    def move_file(self, file_path, is_public, is_batch_operation=False):
+    def move_file(self, file_path, is_public):
         if os.path.isdir(file_path):
             logging.debug(f"Skipping directory in move_file: {file_path}")
             return file_path, False, []
@@ -77,12 +76,8 @@ class SiftIOUtils:
             logging.debug(f"File moved successfully: {file_path} -> {dest_path}")
             self.metadata_utils.update_file_path(file_path, dest_path)
             
-            # Check and remove empty directory only for non-batch operations
-            if not is_batch_operation:
-                original_dir = os.path.dirname(file_path)
-                dir_removed = self.check_and_remove_empty_directory(original_dir)
-            else:
-                dir_removed = False
+            original_dir = os.path.dirname(file_path)
+            dir_removed = self.check_and_remove_empty_directory(original_dir)
             
             return dest_path, new_dir_created, dir_removed
         else:
@@ -133,6 +128,8 @@ class SiftIOUtils:
         
         return False
 
+    # NOTE: This method should only be called from within sift_io_utils.py.
+    # For external sorting operations, use the sort() method instead.
     def batch_sort_directory(self, dir_path, is_public, progress_callback=None):
         logging.debug(f"batch_sort_directory() called on: {dir_path}")
         files_to_process = []
@@ -143,7 +140,7 @@ class SiftIOUtils:
 
         total_files = len(files_to_process)
         for i, file_path in enumerate(files_to_process):
-            self.sort_file(file_path, is_public, is_batch_operation=True)
+            self.sort(file_path, is_public)
             if progress_callback:
                 progress_callback(int((i + 1) / total_files * 100))
 

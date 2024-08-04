@@ -48,7 +48,7 @@ class TestIOMetadata(unittest.TestCase):
         
         # Sort the directory as Private
         logging.info(f"Sorting directory: {self.test_folder}")
-        self.io_utils.batch_sort_directory(self.test_folder, is_public=False)
+        self.io_utils.sort(self.test_folder, is_public=False)
         
         # 1. Verify files moved to private root
         private_test_folder = os.path.join(PRIVATE_ROOT, "1978", "tests", "test_01")
