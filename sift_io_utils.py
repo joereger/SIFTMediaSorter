@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from sift_metadata_utils import SiftMetadataUtils
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftIOUtils:
     def __init__(self, public_root, private_root, safe_delete_root, gui_refresh_callback=None):
@@ -139,14 +139,26 @@ class SiftIOUtils:
                 files_to_process.append(file_path)
 
         total_files = len(files_to_process)
+        logging.debug(f"Found {total_files} files to process")
+
         for i, file_path in enumerate(files_to_process):
+            logging.debug(f"Processing file {i+1}/{total_files}: {file_path}")
             self.sort(file_path, is_public)
             if progress_callback:
                 progress_callback(int((i + 1) / total_files * 100))
 
+        logging.debug("All files processed, starting cleanup")
         self.batch_cleanup_empty_directories(dir_path)
+        
+        logging.debug("Saving all metadata")
+        self.metadata_utils.save_all_metadata()
+        
+        logging.debug("Saving index")
         self.metadata_utils.save_index()
+        
+        logging.debug("Refreshing directory stats")
         self.refresh_directory_stats(dir_path)
+        
         logging.debug(f"Completed batch sorting of directory: {dir_path}. {total_files} files processed.")
 
     def cleanup_empty_directories(self, directory):
@@ -218,7 +230,7 @@ class SiftIOUtils:
         if os.path.isdir(file_path):
             logging.debug(f"Skipping backup for directory: {file_path}")
             return
-        backup_dir = os.path.join(self.safe_delete_root, 'public' if self.metadata_utils.get_file_status(file_path) == 'public' else 'private')
+        backup_dir = os.path.join(self.safe_delete_root, 'public' if self.metadata_utils.get_file_status(file_path)[0] == 'public' else 'private')
         os.makedirs(backup_dir, exist_ok=True)
         backup_path = shutil.copy2(file_path, backup_dir)
         logging.debug(f"Created backup: {file_path} -> {backup_path}")

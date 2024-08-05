@@ -21,7 +21,7 @@ class SortWorker(QThread):
 
     def run(self):
         try:
-            self.io_utils.sort(self.path, self.is_public, self.progress.emit)
+            self.io_utils.sort(self.path, self.is_public)
             if self.is_running:
                 self.finished.emit()
         except Exception as e:

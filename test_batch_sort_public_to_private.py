@@ -4,6 +4,15 @@ import json
 import shutil
 import random
 import logging
+import sys
+
+# Add the project root directory to the Python path
+project_root = os.path.abspath(os.path.dirname(__file__))
+sys.path.insert(0, project_root)
+
+# Change the current working directory to the project root
+os.chdir(project_root)
+
 from sift_io_utils import SiftIOUtils
 from sift_metadata_utils import SiftMetadataUtils
 from constants import PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT, METADATA_FOLDER
@@ -45,6 +54,7 @@ class TestIOMetadata(unittest.TestCase):
 
     def test_batch_sort_directory(self):
         logging.info("Starting test_batch_sort_directory")
+        logging.info(f"Current working directory: {os.getcwd()}")
         
         # Sort the directory as Private
         logging.info(f"Sorting directory: {self.test_folder}")
