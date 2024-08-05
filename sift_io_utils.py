@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from sift_metadata_utils import SiftMetadataUtils
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftIOUtils:
     def __init__(self, public_root, private_root, safe_delete_root, gui_refresh_callback=None):

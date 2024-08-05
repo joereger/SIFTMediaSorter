@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from constants import PUBLIC_ROOT, PRIVATE_ROOT, METADATA_FOLDER
 import logging
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftMetadataUtils:
     def __init__(self, public_root, private_root):
