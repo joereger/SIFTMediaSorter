@@ -4,7 +4,6 @@ from PyQt6.QtCore import Qt
 from gui_directory_tree import DirectoryTreePane
 from gui_directory_details import DirectoryDetailsPane
 from gui_files_grid import FilesGridPane
-from constants import PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -24,9 +23,9 @@ class MainWindow(QMainWindow):
         left_widget.setLayout(left_layout)
 
         # Create panes
-        self.directory_details = DirectoryDetailsPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)
-        self.directory_tree = DirectoryTreePane(PUBLIC_ROOT, PRIVATE_ROOT)
-        self.files_grid = FilesGridPane(PUBLIC_ROOT, PRIVATE_ROOT, SAFE_DELETE_ROOT)
+        self.directory_details = DirectoryDetailsPane()
+        self.directory_tree = DirectoryTreePane()
+        self.files_grid = FilesGridPane()
 
         # Add directory details and directory tree to left layout
         left_layout.addWidget(self.directory_details, 25)

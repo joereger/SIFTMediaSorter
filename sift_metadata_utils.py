@@ -10,9 +10,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftMetadataUtils:
-    def __init__(self, public_root, private_root):
-        self.public_root = public_root
-        self.private_root = private_root
+    def __init__(self):
         self.metadata = {'public': {}, 'private': {}}
         self.index_files = {
             'public': os.path.join(METADATA_FOLDER, 'index', 'public_index.json'),
@@ -71,24 +69,24 @@ class SiftMetadataUtils:
         return None
 
     def get_file_status(self, file_path):
-        root = self.public_root if self.public_root in file_path else self.private_root
+        root = PUBLIC_ROOT if PUBLIC_ROOT in file_path else PRIVATE_ROOT
         relative_path = os.path.relpath(file_path, root)
         year = self.get_year_from_path(relative_path)
         if year:
-            status = 'public' if root == self.public_root else 'private'
+            status = 'public' if root == PUBLIC_ROOT else 'private'
             metadata = self.load_metadata_file(year, status)
             file_data = metadata.get(relative_path, {})
             return file_data.get('status'), file_data.get('reviewed', False)
         return None, False
 
     def update_manual_review_status(self, file_path, new_status):
-        root = self.public_root if self.public_root in file_path else self.private_root
+        root = PUBLIC_ROOT if PUBLIC_ROOT in file_path else PRIVATE_ROOT
         relative_path = os.path.relpath(file_path, root)
         year = self.get_year_from_path(relative_path)
         logging.debug(f"Updating manual review status for file: {file_path}")
         logging.debug(f"Extracted year from path: {year}")
         if year:
-            current_status = 'public' if root == self.public_root else 'private'
+            current_status = 'public' if root == PUBLIC_ROOT else 'private'
             
             # Remove metadata from the old status file
             old_metadata = self.load_metadata_file(year, current_status)
@@ -118,8 +116,8 @@ class SiftMetadataUtils:
             logging.error(f"Could not extract year from file path: {file_path}")
 
     def update_file_path(self, old_path, new_path):
-        old_root = self.public_root if self.public_root in old_path else self.private_root
-        new_root = self.public_root if self.public_root in new_path else self.private_root
+        old_root = PUBLIC_ROOT if PUBLIC_ROOT in old_path else PRIVATE_ROOT
+        new_root = PUBLIC_ROOT if PUBLIC_ROOT in new_path else PRIVATE_ROOT
         old_relative_path = os.path.relpath(old_path, old_root)
         new_relative_path = os.path.relpath(new_path, new_root)
         old_year = self.get_year_from_path(old_relative_path)
@@ -129,8 +127,8 @@ class SiftMetadataUtils:
         logging.debug(f"Old year: {old_year}, New year: {new_year}")
         
         if old_year and new_year:
-            old_status = 'public' if old_root == self.public_root else 'private'
-            new_status = 'public' if new_root == self.public_root else 'private'
+            old_status = 'public' if old_root == PUBLIC_ROOT else 'private'
+            new_status = 'public' if new_root == PUBLIC_ROOT else 'private'
             
             # Load old metadata
             old_metadata = self.load_metadata_file(old_year, old_status)

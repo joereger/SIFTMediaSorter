@@ -114,7 +114,7 @@ class DirectoryTree(QTreeView):
         self.delegate = ProgressBarDelegate()
         self.delegate.refresh_clicked.connect(self.refresh_directory)
         self.setItemDelegate(self.delegate)
-        self.sift_io_utils = SiftIOUtils(root_path, root_path, "")  # Assume same root for public and private
+        self.sift_io_utils = SiftIOUtils()  # Assume same root for public and private
         self.populate_tree()
 
     def populate_tree(self):

@@ -11,7 +11,7 @@ class FilesGridPane(QScrollArea):
     stats_updated = pyqtSignal(str)
     directory_removed = pyqtSignal(str)
 
-    def __init__(self, public_root, private_root, safe_delete_root):
+    def __init__(self):
         super().__init__()
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -64,11 +64,10 @@ class FilesGridPane(QScrollArea):
         self.current_path = ""
         self.current_file = ""
         self.items = []
-        self.public_root = public_root
-        self.private_root = private_root
+
 
         # Initialize SiftIOUtils
-        self.sift_io = SiftIOUtils(public_root, private_root, safe_delete_root)
+        self.sift_io = SiftIOUtils()
 
         # Connect button signals
         self.public_button.clicked.connect(self.sort_public_current)

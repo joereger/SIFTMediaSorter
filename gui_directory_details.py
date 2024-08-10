@@ -34,7 +34,7 @@ class SortWorker(QThread):
 class DirectoryDetailsPane(QWidget):
     directory_sorted = pyqtSignal(str)
 
-    def __init__(self, public_root, private_root, safe_delete_root):
+    def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
         self.setLayout(layout)
@@ -62,7 +62,7 @@ class DirectoryDetailsPane(QWidget):
         self.private_button.clicked.connect(self.sort_private)
 
         # Initialize SiftIOUtils
-        self.io_utils = SiftIOUtils(public_root, private_root, safe_delete_root)
+        self.io_utils = SiftIOUtils()
 
         self.current_path = None
         self.sort_worker = None

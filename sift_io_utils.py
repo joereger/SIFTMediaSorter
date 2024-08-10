@@ -4,15 +4,14 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from sift_metadata_utils import SiftMetadataUtils
+from constants import PUBLIC_ROOT, PRIVATE_ROOT, METADATA_FOLDER, SAFE_DELETE_ROOT
+import pdb  # Add this import at the top of the file
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class SiftIOUtils:
-    def __init__(self, public_root, private_root, safe_delete_root, gui_refresh_callback=None):
-        self.public_root = public_root
-        self.private_root = private_root
-        self.safe_delete_root = safe_delete_root
-        self.metadata_utils = SiftMetadataUtils(public_root, private_root)
+    def __init__(self, gui_refresh_callback=None):
+        self.metadata_utils = SiftMetadataUtils()
         self.gui_refresh_callback = gui_refresh_callback
 
     def list_directory(self, directory):
@@ -23,17 +22,23 @@ class SiftIOUtils:
     def sort(self, path, is_public):
         if os.path.isdir(path):
             logging.debug(f"sort() called on a directory: {path}")
+            pdb.set_trace() 
             self.batch_sort_directory(path, is_public)
         else:
-            logging.debug(f"Sorting file: {path}")
-            current_root = self.private_root if path.startswith(self.private_root) else self.public_root
-            target_root = self.public_root if is_public else self.private_root
+            logging.debug(f"sort() called on a file: {path}")
+            pdb.set_trace()
+            current_root = PRIVATE_ROOT if path.startswith(PRIVATE_ROOT) else PUBLIC_ROOT
+            target_root = PUBLIC_ROOT if is_public else PRIVATE_ROOT
             
             if current_root == target_root:
+                logging.debug(f"sort() current_root == target_root so just updating metadata")
+                pdb.set_trace()
                 # File is already in the correct root, just update metadata
                 self.update_file_metadata(path, is_public)
                 new_path = path
             else:
+                logging.debug(f"sort() current_root is not target_root so file must be moved.")
+                pdb.set_trace()
                 # File needs to be moved
                 new_path, _, _ = self.move_file(path, is_public)
             
@@ -47,17 +52,18 @@ class SiftIOUtils:
         logging.debug(f"Updated metadata for {path}: status={new_status}, reviewed=True")
 
     def move_file(self, file_path, is_public):
+        logging.debug(f"move_file() called file_path: {file_path}")
+        pdb.set_trace()
         if os.path.isdir(file_path):
             logging.debug(f"Skipping directory in move_file: {file_path}")
             return file_path, False, []
 
-        source_root = self.public_root if file_path.startswith(self.public_root) else self.private_root
-        dest_root = self.public_root if is_public else self.private_root
+        source_root = PUBLIC_ROOT if file_path.startswith(PUBLIC_ROOT) else PRIVATE_ROOT
+        dest_root = PUBLIC_ROOT if is_public else PRIVATE_ROOT
         rel_path = os.path.relpath(file_path, source_root)
         dest_path = os.path.join(dest_root, rel_path)
 
         logging.debug(f"Moving file from {file_path} to {dest_path}")
-
         new_dir_created = self.create_directory_if_not_exists(os.path.dirname(dest_path))
 
         if os.path.exists(dest_path):
@@ -71,29 +77,39 @@ class SiftIOUtils:
         self.create_backup(file_path)
         shutil.copy2(file_path, dest_path)
 
+        logging.debug(f"File moved, will start cleanup: {dest_path}")
+        pdb.set_trace()
+
         if self.verify_file_integrity(file_path, dest_path):
             os.remove(file_path)
-            logging.debug(f"File moved successfully: {file_path} -> {dest_path}")
+            logging.debug(f"File removed successfully: {file_path} -> {dest_path}")
             self.metadata_utils.update_file_path(file_path, dest_path)
             
             original_dir = os.path.dirname(file_path)
             dir_removed = self.check_and_remove_empty_directory(original_dir)
+
+            logging.debug(f"move_file() done: {file_path}")
+            pdb.set_trace()
             
             return dest_path, new_dir_created, dir_removed
         else:
-            logging.error(f"File integrity check failed for {file_path}")
+            logging.error(f"move_file() File integrity check failed for {file_path}")
+            pdb.set_trace()
             raise Exception("File integrity check failed")
+        
+        
 
     def create_directory_if_not_exists(self, directory):
         if not os.path.exists(directory):
             os.makedirs(directory)
             logging.debug(f"Created new directory: {directory}")
+            pdb.set_trace()
             return True
         return False
 
     def check_and_remove_empty_directory(self, directory):
         logging.debug(f"Checking directory for removal: {directory}")
-        if directory == self.public_root or directory == self.private_root:
+        if directory == PUBLIC_ROOT or directory == PRIVATE_ROOT:
             logging.debug(f"Skipping root directory: {directory}")
             return False  # Don't remove root directories
         
@@ -230,7 +246,7 @@ class SiftIOUtils:
         if os.path.isdir(file_path):
             logging.debug(f"Skipping backup for directory: {file_path}")
             return
-        backup_dir = os.path.join(self.safe_delete_root, 'public' if self.metadata_utils.get_file_status(file_path)[0] == 'public' else 'private')
+        backup_dir = os.path.join(SAFE_DELETE_ROOT, 'public' if self.metadata_utils.get_file_status(file_path)[0] == 'public' else 'private')
         os.makedirs(backup_dir, exist_ok=True)
         backup_path = shutil.copy2(file_path, backup_dir)
         logging.debug(f"Created backup: {file_path} -> {backup_path}")
@@ -243,7 +259,7 @@ class SiftIOUtils:
     def cleanup_safe_delete_folder(self, days_old):
         cutoff = datetime.now() - timedelta(days=days_old)
         cleaned_files = 0
-        for root, _, files in os.walk(self.safe_delete_root):
+        for root, _, files in os.walk(SAFE_DELETE_ROOT):
             for file in files:
                 file_path = os.path.join(root, file)
                 if datetime.fromtimestamp(os.path.getctime(file_path)) < cutoff:
@@ -274,7 +290,7 @@ class SiftIOUtils:
     def refresh_directory_stats(self, start_path):
         paths_to_refresh = []
         current_path = start_path
-        while current_path != self.public_root and current_path != self.private_root:
+        while current_path != PUBLIC_ROOT and current_path != PRIVATE_ROOT:
             paths_to_refresh.append(current_path)
             current_path = os.path.dirname(current_path)
         paths_to_refresh.append(current_path)  # Add root directory
