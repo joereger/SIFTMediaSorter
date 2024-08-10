@@ -4,14 +4,16 @@
 # Once installed, run 'which jq' to get the full path to the installed executable
 # because MacOS Automator doesn't often have access to a full shell we need to hardcode the path to jq
 
+# When creating the MacOS Quick Action:
+# - Workflow receives current files or folders in Finder.app
+# - make sure to set Pass Input "As Arguments"
+
 # Set this variable to either "PUBLIC" or "PRIVATE" to determine the mirroring direction
 MIRROR_DIRECTION="PRIVATE"
 
 # Define the root directories
 PUBLIC_ROOT="/Users/joereger/Dropbox (Personal)/SIFTMediaSorter/test_public"
 PRIVATE_ROOT="/Users/joereger/Dropbox (Personal)/SIFTMediaSorter/test_private"
-echo "PUBLIC_ROOT: $PUBLIC_ROOT" >> "$log_file"
-echo "PRIVATE_ROOT: $PRIVATE_ROOT" >> "$log_file"
 
 # Location of jq binary
 JQ_PATH="/opt/homebrew/bin/jq"
@@ -20,7 +22,10 @@ JQ_PATH="/opt/homebrew/bin/jq"
 exec 2>"$PUBLIC_ROOT/JoeregerMirroringScript_error_log.txt"
 set -x
 log_file="$PUBLIC_ROOT/JoeregerMirroringScript_script_log.txt"
-echo "Script started at $(date)" > "$log_file"
+echo "--- Script started at $(date) ---" > "$log_file"
+echo "MIRROR_DIRECTION: $MIRROR_DIRECTION" >> "$log_file"
+echo "PUBLIC_ROOT: $PUBLIC_ROOT" >> "$log_file"
+echo "PRIVATE_ROOT: $PRIVATE_ROOT" >> "$log_file"
 
 # Log information about the input file/folder
 if [ $# -eq 0 ]; then
